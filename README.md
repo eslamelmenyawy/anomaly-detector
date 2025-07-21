@@ -1,4 +1,4 @@
-﻿# Anomaly Detector
+
 # Anomaly Detector
 
 This project uses [Anomalib](https://github.com/openvinotoolkit/anomalib) for training and inference of anomaly detection models such as Patchcore, Padim, and FastFlow.
