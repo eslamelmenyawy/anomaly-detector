@@ -1,0 +1,24 @@
+<svg width="200" height="200" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="60" cy="60" r="55" fill="#EEEDFE" stroke="#534AB7" stroke-width="2"/>
+  <circle cx="60" cy="10"  r="5"   fill="#534AB7"/>
+  <circle cx="60" cy="110" r="5"   fill="#534AB7"/>
+  <circle cx="10" cy="60"  r="5"   fill="#534AB7"/>
+  <circle cx="110" cy="60" r="5"   fill="#534AB7"/>
+  <circle cx="22" cy="22"  r="3.5" fill="#AFA9EC"/>
+  <circle cx="98" cy="22"  r="3.5" fill="#AFA9EC"/>
+  <circle cx="22" cy="98"  r="3.5" fill="#AFA9EC"/>
+  <circle cx="98" cy="98"  r="3.5" fill="#AFA9EC"/>
+  <circle cx="60" cy="22"  r="3"   fill="#7F77DD"/>
+  <circle cx="98" cy="60"  r="3"   fill="#7F77DD"/>
+  <circle cx="22" cy="60"  r="3"   fill="#7F77DD"/>
+  <circle cx="60" cy="98"  r="3"   fill="#7F77DD"/>
+  <circle cx="60" cy="60"  r="36"  fill="#EEEDFE" stroke="#7F77DD" stroke-width="1.5"/>
+  <circle cx="60" cy="60"  r="24"  fill="#534AB7"/>
+  <text x="60" y="60" text-anchor="middle" dominant-baseline="central"
+    font-size="20" font-weight="600" fill="#EEEDFE"
+    font-family="system-ui" letter-spacing="1">SE</text>
+  <circle cx="60" cy="36" r="4" fill="#7F77DD"/>
+  <circle cx="60" cy="84" r="4" fill="#7F77DD"/>
+  <circle cx="36" cy="60" r="4" fill="#7F77DD"/>
+  <circle cx="84" cy="60" r="4" fill="#7F77DD"/>
+</svg>
