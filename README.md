@@ -1,195 +1,163 @@
 <div align="center">
-  <img src="se_logo.svg" width="120"/>
-  <br><br>
-  <strong>Sam Elmenyawy</strong><br>
-  AI · Deep Learning · Computer Vision · NLP
+  <img src="assets/se_logo.svg" width="110" alt="logo"/>
+
+  <h1>Industrial Anomaly Detection — Anomalib + OpenVINO</h1>
+
+  <p>Unsupervised defect detection trained on <b>normal images only</b>, deployed through two inference backends: <b>OpenVINO</b> (optimised CPU) and <b>PyTorch</b>.</p>
+
+  <p>
+    <img alt="Python" src="https://img.shields.io/badge/Python-3.10-blue">
+    <img alt="Anomalib" src="https://img.shields.io/badge/Anomalib-1.0.1-orange">
+    <img alt="OpenVINO" src="https://img.shields.io/badge/OpenVINO-export-0071C5">
+    <img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-CUDA%2012.1-EE4C2C">
+    <img alt="License" src="https://img.shields.io/badge/License-MIT-lightgrey">
+  </p>
 </div>
 
 ---
 
-# Anomaly Detection with Anomalib — Hazelnut Dataset
+## Overview
 
-Industrial anomaly detection using two models from the [Anomalib](https://github.com/openvinotoolkit/anomalib) library, trained on a custom hazelnut dataset and deployed via two inference backends: **OpenVINO** and **PyTorch (TorchInferencer)**.
+On a real production line, defects are rare and every defect looks different, so collecting enough labelled defect images is impractical. This project uses **unsupervised anomaly detection**: the model learns what a *good* product looks like, and anything that deviates is flagged as **Anomalous**.
 
----
+Two models are trained on a hazelnut inspection dataset (normal vs. crack) and exported for deployment:
 
-## What This Project Does
-
-Trains unsupervised anomaly detection models to classify product images as **Normal** or **Anomalous** (crack defects) — no labels needed during training, only normal images. Two separate pipelines are implemented:
-
-| Notebook | Model | Backend | Epochs | Params |
+| Model | Approach | Params | Epochs | Deployment |
 |---|---|---|---|---|
-| `anomly_openvino.ipynb` | CFlow | OpenVINO (`.xml`) | 25 | 236M |
-| `anomly2_lightrch.ipynb` | PaDiM | TorchInferencer (`.pt`) | 1 | 2.8M |
+| **CFlow** | Conditional normalizing flow on CNN features | 236M | 25 | OpenVINO `.xml` (CPU-optimised) |
+| **PaDiM** | Gaussian distribution of ResNet-18 patch features | 2.8M | 1 | PyTorch `.pt` |
 
----
-
-## Dataset
-
-**Hazelnut Toy Dataset** — custom folder structure:
-
-```
-hazelnut_toy/
-├── good/        ← normal images (training + validation)
-│   ├── 00.jpg
-│   ├── 01.jpg
-│   └── ...
-└── crack/       ← anomalous images (evaluation only)
-    ├── 00.jpg
-    └── ...
-```
-
-> Only `good/` images are used during training. `crack/` images are used only at test/inference time — this is the core principle of unsupervised anomaly detection.
-
----
-
-## Models
-
-### CFlow (Conditional Normalizing Flow)
-- **Architecture:** Normalizing flow on top of a feature extractor
-- **Parameters:** 236M
-- **Training epochs:** 25
-- **Image size:** 512 × 512
-- **Task:** Classification (image-level anomaly score)
-- **Metrics:** AUROC, F1Score (image-level)
-- **Normalization:** MinMax
-- **Threshold:** F1AdaptiveThreshold
-- **Export:** OpenVINO format (`model.xml` + `model.bin`) for optimised CPU inference
-
-### PaDiM (Patch Distribution Modelling)
-- **Architecture:** Multivariate Gaussian distribution fitted on ResNet-18 patch features
-- **Backbone:** ResNet-18 (pretrained)
-- **Feature layers:** `layer1`, `layer2`, `layer3`
-- **Parameters:** 2.8M
-- **Training epochs:** 1 (distribution fitting — no gradient updates needed)
-- **Export:** PyTorch format (`model.pt`) via TorchInferencer
-- **Custom threshold:** 0.4 — score > 0.4 → Anomalous
+<p align="center">
+  <img src="assets/cflow_openvino_result.png" width="320" alt="CFlow OpenVINO prediction"/>
+  <br><sub>CFlow running through OpenVINO on CPU</sub>
+</p>
 
 ---
 
 ## Pipeline
 
 ```
-hazelnut_toy/
-        │
-        ▼  Anomalib Folder datamodule
-   Normal images (good/)  →  Train  →  Fit anomaly model
-                                              │
-                                    Export weights
-                               ┌──────────────┴──────────────┐
-                               ▼                             ▼
-                        OpenVINO .xml                  PyTorch .pt
-                        (CFlow — CPU)           (PaDiM — TorchInferencer)
-                               │                             │
-                          Test image                   Test image
-                               │                             │
-                        Anomaly Score                 Anomaly Score
-                               │                             │
-                         Normal / Anomalous          Normal / Anomalous
+dataset/
+ ├── good/   ── train ──►  Anomalib model (CFlow / PaDiM)
+ └── crack/  ── evaluate ──┘          │
+                                   export
+                      ┌───────────────┴───────────────┐
+                      ▼                               ▼
+               OpenVINO  model.xml              PyTorch  model.pt
+                      │                               │
+                      └──────────► infer.py ◄─────────┘
+                                      │
+                    anomaly score  →  NORMAL / ANOMALOUS  +  annotated image
 ```
+
+Only `good/` images are used for training. `crack/` images are used only for evaluation, which is the core principle of unsupervised anomaly detection.
+
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/eslamelmenyawy/anomaly-detector.git
+cd anomaly-detector
+
+conda create -n anomalib python=3.10 -y && conda activate anomalib
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+pip install -r requirements.txt
+```
+
+Arrange your dataset like this (any product works, not just hazelnuts):
+
+```
+data/hazelnut_toy/
+├── good/    ← normal images
+└── crack/   ← defect images (optional, evaluation only)
+```
+
+### Train and export
+
+```bash
+# CFlow → OpenVINO
+python src/train.py --model cflow --data-root data/hazelnut_toy --export openvino
+
+# PaDiM → PyTorch (trains in seconds)
+python src/train.py --model padim --data-root data/hazelnut_toy --export torch
+```
+
+### Run inference
+
+```bash
+# Single image or a whole folder; annotated results are written to outputs/
+python src/infer.py --weights weights/cflow/weights/openvino/model.xml --source data/hazelnut_toy/crack
+
+# Custom threshold (score > threshold = anomalous)
+python src/infer.py --weights weights/padim/weights/torch/model.pt --source sample.jpg --threshold 0.4
+```
+
+`infer.py` picks the backend from the file extension, prints a score table with per-image latency, and saves annotated images plus heatmaps when the model provides them.
 
 ---
 
 ## Results
 
-### CFlow — OpenVINO Inference
+| Model | Image | Score | Threshold | Prediction |
+|---|---|---|---|---|
+| CFlow (OpenVINO) | `good/00.jpg` | 2.1502 | model default | ✅ Normal |
+| PaDiM (PyTorch) | `good/15.jpg` | below threshold | 0.4 | ✅ Normal |
+| PaDiM (PyTorch) | `crack/04.jpg` | 0.4988 | 0.4 | ❌ Anomalous |
 
-| Image | Prediction Score | Label |
-|---|---|---|
-| `good/00.jpg` | 2.1502 | ✅ Normal |
+PaDiM correctly flags the cracked hazelnut after a single epoch of distribution fitting.
 
-### PaDiM — TorchInferencer
-
-| Image | Raw Score | Threshold | Label |
-|---|---|---|---|
-| `good/15.jpg` | — | 0.4 | ✅ Normal |
-| `crack/04.jpg` | 0.4988 | 0.4 | ❌ Anomalous |
-
-PaDiM correctly flagged the crack image with a score above the threshold.
+**Hardware:** NVIDIA RTX 4060 Laptop GPU · PyTorch + CUDA 12.1 · Anomalib 1.0.1 · Windows 11
 
 ---
 
-## Setup
-
-### Environment
-
-```bash
-conda create -n anomalib-gpu python=3.10
-conda activate anomalib-gpu
-pip install anomalib==1.0.1
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-pip install openvino
-```
-
-### Dataset Structure
-
-Set your dataset path in Cell 2 of each notebook:
-
-```python
-root = r"path\to\hazelnut_toy"
-normal_dir  = "good"
-abnormal_dir = "crack"
-```
-
----
-
-## Notebook Walkthrough
-
-### `anomly_openvino.ipynb` — CFlow + OpenVINO
-
-| Cell | Description |
-|---|---|
-| 1 | Imports, seed, GPU setup |
-| 2 | Folder datamodule — 512×512, batch 16 |
-| 3 | CFlow model init |
-| 4 | Engine config — 25 epochs, AUROC + F1 metrics |
-| 5 | `engine.fit()` — training |
-| 6 | Export to OpenVINO (`.xml` + `.bin`) |
-| 7 | Load test image, preprocess |
-| 8 | OpenVINOInferencer — predict + visualise |
-
-### `anomly2_lightrch.ipynb` — PaDiM + TorchInferencer
-
-| Cell | Description |
-|---|---|
-| 1 | Imports, seed, GPU setup |
-| 2 | Folder datamodule |
-| 3 | PaDiM model — ResNet-18, layers 1–3, 100 features |
-| 4 | Engine — 1 epoch (distribution fitting only) |
-| 5 | `engine.fit()` — training |
-| 6 | Export to PyTorch `.pt` |
-| 7 | `engine.test()` — evaluation |
-| 8 | TorchInferencer — normal image prediction |
-| 9 | TorchInferencer — anomalous image prediction + custom threshold |
-
----
-
-## Why Two Models?
+## Choosing a model
 
 | | CFlow | PaDiM |
 |---|---|---|
-| Approach | Normalizing flow (generative) | Gaussian distribution on patch features |
-| Training time | Slow (25 epochs, 236M params) | Fast (1 epoch, 2.8M params) |
-| Deployment | OpenVINO — optimised for Intel CPU | PyTorch — flexible, easy to integrate |
-| Best for | High accuracy, production on Intel hardware | Fast prototyping, low resource environments |
-| Score interpretation | Higher score = more anomalous | Higher score = more anomalous (threshold: 0.4) |
+| Training cost | Slow (25 epochs, 236M params) | Fast (1 epoch, 2.8M params) |
+| Strength | Higher accuracy on subtle defects | Fast prototyping, low-resource setups |
+| Best deployment | OpenVINO on Intel CPUs / edge PCs | PyTorch, easy to embed in Python services |
 
 ---
 
-## Hardware
+## Project structure
 
-| | |
-|---|---|
-| GPU | NVIDIA GeForce RTX 4060 Laptop GPU |
-| Framework | PyTorch + CUDA 12.1 |
-| Anomalib | v1.0.1 |
-| OS | Windows 11, Anaconda |
+```
+anomaly-detector/
+├── src/
+│   ├── train.py                  # train + export (CLI)
+│   └── infer.py                  # OpenVINO / PyTorch inference (CLI)
+├── notebooks/
+│   ├── cflow_openvino.ipynb      # CFlow exploration + OpenVINO export
+│   └── padim_torch.ipynb         # PaDiM exploration + TorchInferencer
+├── assets/
+├── requirements.txt
+├── LICENSE
+└── README.md
+```
+
+---
+
+## Roadmap
+
+- [ ] Benchmark latency: PyTorch vs OpenVINO FP32 vs OpenVINO INT8 (NNCF)
+- [ ] Pixel-level segmentation masks on MVTec AD
+- [ ] FastAPI service with a `/predict` endpoint and Docker image
+- [ ] Compare PatchCore and EfficientAD
 
 ---
 
 ## References
 
-- [Anomalib — OpenVINO Toolkit](https://github.com/openvinotoolkit/anomalib)
-- [CFlow-AD: Real-World Anomaly Detection with Normalizing Flows](https://arxiv.org/abs/2107.12571)
-- [PaDiM: A Patch Distribution Modelling Framework for Anomaly Detection](https://arxiv.org/abs/2011.08785)
-- [OpenVINO Toolkit](https://github.com/openvinotoolkit/openvino)
+- [Anomalib](https://github.com/openvinotoolkit/anomalib) · [OpenVINO](https://github.com/openvinotoolkit/openvino)
+- [CFlow-AD: Real-Time Unsupervised Anomaly Detection with Localization via Conditional Normalizing Flows](https://arxiv.org/abs/2107.12571)
+- [PaDiM: A Patch Distribution Modeling Framework for Anomaly Detection and Localization](https://arxiv.org/abs/2011.08785)
+
+---
+
+<div align="center">
+  Built by <b>Sam (Islam) Elmenyawy</b> · AI/ML Engineer, Computer Vision ·
+  <a href="https://www.linkedin.com/in/islam-ahmed-00188015a/">LinkedIn</a> ·
+  <a href="https://github.com/eslamelmenyawy">GitHub</a>
+</div>
